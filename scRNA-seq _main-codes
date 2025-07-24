@@ -1,0 +1,29 @@
+
+###Obtain PD0 and PD3 upregulated gene sets (Fig4D)
+library(dplyr)
+library(Seurat)
+library(patchwork)
+Subset_Germs <- readRDS(file = "D:\\2020Year\\Subset_Germs.rds")
+DefaultAssay(Subset_Germs) <- "RNA"
+Idents(Subset_Germs) <- Subset_Germs@meta.data$orig.ident
+DEG3.markers <- FindMarkers(Subset_Germs, ident.1 = "PD3", ident.2 = "E16_5")
+DEG0.markers <- FindMarkers(Subset_Germs, ident.1 = "PD0", ident.2 = "E16_5")
+
+library(dplyr)
+DEG3.markers <- filter(DEG.markers, avg_log2FC > 0.25 | avg_log2FC < -0.25, p_val_adj < 1.00e-02)
+DEG33.markers <- filter(DEG3.markers, avg_log2FC > 0)
+
+DEG0.markers <- filter(DEG0.markers, avg_log2FC > 0.25 | avg_log2FC < -0.25, p_val_adj < 1.00e-02)
+DEG00.markers <- filter(DEG0.markers, avg_log2FC > 0)
+
+write.csv(DEG33.markers,"PD3.Up_DEGs.csv")
+write.csv(DEG00.markers,"PD3.Up_DEGs.csv")
+
+### NTRK signaling-related gene expression (Fig4F)
+library(ggplot2)
+library(reshape2)
+DotPlot(Subset_Germs,assay = "RNA", group.by="orig.ident", 
+        features = c('Slc12a2',"Furin", "Pcsk6","Rap1a","Dnaja2","Pmpca","Dnajb14",
+                                   "Fgf22","Slc44a1","Arhgdig","Bcl2")) + 
+  scale_colour_gradient2(low =  rev(c('#d1e5f0','#67a9cf','#2166ac')), 
+                        mid = "white", high = rev(c('#b2182b','#ef8a62','#fddbc7')))
