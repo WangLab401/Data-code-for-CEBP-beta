@@ -1,0 +1,107 @@
+
+
+1. Pre-alignment Quality Control (QC)
+
+### Raw Data Inspection
+fastqc raw_data/*.fastq.gz -o qc_results/ 
+
+###Adapter Trimming (Trim Galore)
+trim_galore --paired Ctrl-1_R1.fq.gz Ctrl-1_R2.fq.gz -o trimmed/
+
+2. Alignment
+### Mapping Reads (Bowtie2)
+bowtie2-build Mus_mm9.fa genome/ssc11_index
+bowtie2 -x /home/labShen \
+  -1 trimmed/Ctrl-1_R1_val_1.fq.gz \
+  -2 trimmed/Ctrl-1_R2_val_1.fq.gz \
+  --local --very-sensitive-local --no-unal --no-mixed --no-discordant \
+  -I 10 -X 700 \
+  -p 8 -S aligned/sample.sam
+
+### SAM to BAM & Ranking
+samtools view -bS aligned/sample.sam | samtools sort -o aligned/sample.sorted.bam
+samtools index aligned/sample.sorted.bam
+
+3. Peak Calling (MACS2)
+conda deactivate
+conda activate env_name
+mkdir peaks
+macs2 callpeak -t aligned/sample.sorted.bam -f BAMPE -g 2.5e9 -n sample_Ctrl-1 --outdir peaks/ --keep-dup all --nomodel --shift -75 --extsize 150 -q 0.05
+mkdir signal
+
+6. BAM to bigWig（for visualization）
+bamCoverage -b aligned/sample.sorted.bam \
+  -o signal/sample_Ctrl-1.bw \
+  --normalizeUsing RPGC \
+  --effectiveGenomeSize 2500000000 \
+  --binSize 10
+
+## IDR analysis：
+idr --samples groupA_rep1_peaks.narrowPeak groupA_rep2_peaks.narrowPeak --output-file idr_groupA.txt
+
+***************Ctrl-2, Ctrl-3, siEp300-1, siEp300-2 were treated in the same way as above******************
+
+******Downstream analysis code********
+****Fig 4A****
+###load required packages 
+library(clusterProfiler)
+library(org.Mm.eg.db)
+library(ChIPseeker)
+library(ggplot2)
+library(GenomicFeatures)
+library(org.Ss.eg.db)
+
+###Build genome annotation db file
+txdb <- makeTxDbFromGFF("/home/labShen/mm.gff3")
+peaks <- readPeakFile("Ctrl_peaks.csv")
+
+### TSS region visualization
+peakAnno <- annotatePeak(peaks, 
+                         tssRegion=c(-1000, 1000),
+                         TxDb=txdb, annoDb="org.Mm.eg.db")
+plotAnnoPie(peakAnno)
+
+****Fig 4B****
+library(DiffBind)
+dbObj <- dba(sampleSheet="siEp300_Ctrl.csv")
+
+### Counting reads
+dbObj <- dba.count(dbObj, bUseSummarizeOverlaps=TRUE)
+dba.plotPCA(dbObj,  attributes=DBA_FACTOR, label=DBA_ID)
+plot(dbObj)
+dbObj
+
+### Building design and contrast models
+dbObj <- dba.contrast(dbObj, categories=DBA_FACTOR,minMembers = 2)
+dbObj <- dba.analyze(dbObj, method=DBA_ALL_METHODS)
+#  summary of results
+dba.show(dbObj, bContrasts=T)
+
+siEp300_Ctrl <- dba.report(dbObj, contrast=1)
+siEp300_Ctrl <- as.data.frame(siEp300_Ctrl)
+write.csv(siEp300_Ctrl,"Dataset_S1.csv")
+
+****Fig 4C****
+library(DiffBind)
+dbObj <- dba(sampleSheet="siEp300_Ctrl.csv")
+
+### Counting reads
+dbObj <- dba.count(dbObj, bUseSummarizeOverlaps=TRUE)
+dba.plotPCA(dbObj,  attributes=DBA_FACTOR, label=DBA_ID)
+plot(dbObj)
+dbObj
+
+### Building design and contrast models
+dbObj <- dba.contrast(dbObj, categories=DBA_FACTOR,minMembers = 2)
+dbObj <- dba.analyze(dbObj, method=DBA_ALL_METHODS)
+#  summary of results
+dba.show(dbObj, bContrasts=T)
+peaks <- readPeakFile("siEp300_Ctrl_down.csv")
+
+### TSS region visualization (Down_DARs)
+peakAnno <- annotatePeak(peaks, 
+                         tssRegion=c(-1000, 1000),
+                         TxDb=txdb, annoDb="org.Ss.eg.db")
+plotAnnoPie(peakAnno)
+
+
